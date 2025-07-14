@@ -2,10 +2,9 @@ import os
 import threading
 import queue
 
-from fastapi import FastAPI, BackgroundTasks, UploadFile, File, Form
+from fastapi import FastAPI, UploadFile, File, Form
 from mail import send_email
 from log import log_action
-from datetime import datetime
 
 
 app = FastAPI(title="Система Повідомлень API")
