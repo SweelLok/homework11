@@ -1,4 +1,6 @@
 import os
+import threading
+import queue
 
 from fastapi import FastAPI, BackgroundTasks, UploadFile, File, Form
 from mail import send_email
@@ -8,20 +10,36 @@ from datetime import datetime
 
 app = FastAPI(title="Система Повідомлень API")
 
+task_queue = queue.Queue()
+
+def background_worker():
+    while True:
+        func, args, kwargs = task_queue.get()
+        try:
+            func(*args, **kwargs)
+        except Exception as e:
+            log_action("task_error", {"error": str(e)})
+        finally:
+            task_queue.task_done()
+
+worker_thread = threading.Thread(target=background_worker, daemon=True)
+worker_thread.start()
+
+def add_task_to_queue(func, *args, **kwargs):
+    task_queue.put((func, args, kwargs))
 
 @app.post("/send-email/")
 async def send_email_endpoint(
-    background_tasks: BackgroundTasks,
     email: str = Form(...),
     subject: str = Form(...),
     body: str = Form(...)
 ):
-    background_tasks.add_task(send_email, email, subject, body)
-    background_tasks.add_task(log_action, "send_email", {"email": email, "subject": subject})
+    add_task_to_queue(send_email, email, subject, body)
+    add_task_to_queue(log_action, "send_email", {"email": email, "subject": subject})
     return {"message": "Запит на відправлення листа прийнято"}
 
 @app.post("/upload-file/")
-async def upload_file(file: UploadFile = File(...), background_tasks: BackgroundTasks = None):
+async def upload_file(file: UploadFile = File(...)):
     upload_dir = "uploaded"
     os.makedirs(upload_dir, exist_ok=True)
 
